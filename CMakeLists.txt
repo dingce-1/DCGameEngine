@@ -1,0 +1,86 @@
+cmake_minimum_required(VERSION 3.16)
+project(DCGameEngine LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17) # this does nothing for MSVC, use target_compile_options below
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS ON)
+
+IF(NOT CMAKE_BUILD_TYPE)
+  SET(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build (Debug or Release)" FORCE)
+ENDIF(NOT CMAKE_BUILD_TYPE)
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
+
+if(WIN32)
+	set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+endif(WIN32)
+
+link_directories(${CMAKE_SOURCE_DIR}/lib)
+
+# find the required packages
+find_package(GLM REQUIRED)
+message(STATUS "GLM included at ${GLM_INCLUDE_DIR}")
+find_package(GLFW3 REQUIRED)
+message(STATUS "Found GLFW3 in ${GLFW3_INCLUDE_DIR}")
+find_package(ASSIMP REQUIRED)
+message(STATUS "Found ASSIMP in ${ASSIMP_INCLUDE_DIR}")
+
+set(LIBS glfw3 opengl32 assimp freetype irrKlang)
+add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+
+configure_file(configuration/root_directory.h.in configuration/root_directory.h)
+include_directories(${CMAKE_BINARY_DIR}/configuration)
+
+# first create relevant static libraries required for other projects
+add_library(STB_IMAGE "src/stb_image.cpp")
+set(LIBS ${LIBS} STB_IMAGE)
+set_target_properties(STB_IMAGE PROPERTIES LINKER_LANGUAGE CXX)
+add_library(GLAD "src/glad.cpp")
+set_target_properties(STB_IMAGE PROPERTIES LINKER_LANGUAGE CXX)
+set(LIBS ${LIBS} GLAD)
+
+macro(makeLink src dest target)
+  add_custom_command(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E create_symlink ${src} ${dest}  DEPENDS  ${dest} COMMENT "mklink ${src} -> ${dest}")
+endmacro()
+
+
+set(target_name "${PROJECT_NAME}")
+set(output_dir "${CMAKE_SOURCE_DIR}/bin")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${output_dir}")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${output_dir}")
+set(CMAKE_BINARY_DIR "${CMAKE_SOURCE_DIR}/build")
+#------------------------------配置#include路径---------------------------
+#include_directories给所有的目标都会加上路径，而target_include_directories只会个target目标加上路径
+include_directories(
+  "${CMAKE_SOURCE_DIR}/src"
+  "${CMAKE_SOURCE_DIR}/includes"
+)
+#----------------------------------------------------------------------
+
+
+# Prevent a "command line is too long" failure in Windows.
+set(CMAKE_NINJA_FORCE_RESPONSE_FILE "ON" CACHE BOOL "Force Ninja to use response files.")
+
+
+file(GLOB_RECURSE source_files 
+${CMAKE_SOURCE_DIR}/src/*.cpp
+${CMAKE_SOURCE_DIR}/src/*.cxx
+${CMAKE_SOURCE_DIR}/src/*.hpp
+${CMAKE_SOURCE_DIR}/src/*.h
+${CMAKE_SOURCE_DIR}/src/*.fs
+${CMAKE_SOURCE_DIR}/src/*.vs
+${CMAKE_SOURCE_DIR}/src/*.gs
+)
+
+set(all_files ${source_files})
+source_group(TREE "${CMAKE_SOURCE_DIR}" FILES ${all_files})
+add_executable(${target_name} MACOSX_BUNDLE ${all_files})
+target_link_libraries(${target_name} ${LIBS})
+#---------------------------------------------------------------------------
+include_directories(${CMAKE_SOURCE_DIR}/includes)
+link_directories(${CMAKE_SOURCE_DIR}/lib)
+
+
+
+# Modify working directory for VS
+set_property(TARGET ${target_name} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY ${OUTPUT_DIR})
